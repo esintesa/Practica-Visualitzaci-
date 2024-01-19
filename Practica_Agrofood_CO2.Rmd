@@ -12,7 +12,7 @@ library(tidyr)
 ```
 
 ```{r, include=FALSE}
-setwd("C:/Users/esintesa/Documents/Master Data Science UOC/Visualització de dades/")
+#setwd("C:/Users/esintesa/Documents/Master Data Science UOC/Visualització de dades/")
 data <- as.data.frame(read.csv("Agrofood_co2_emission.csv"))
 ```
 

@@ -1,0 +1,186 @@
+---
+title: "Agrofood Emissions"
+author: "Enric Sintes"
+date: "2024-01-16"
+output: html_document
+---
+
+```{r, include=FALSE, warning=FALSE}
+library(plotly)
+library(dplyr)
+library(tidyr)
+```
+
+```{r, include=FALSE}
+setwd("C:/Users/esintesa/Documents/Master Data Science UOC/Visualització de dades/")
+data <- as.data.frame(read.csv("Agrofood_co2_emission.csv"))
+```
+
+## Evolució de les emisions de CO2 del sector alimentari
+
+```{r, include=FALSE, warning=FALSE}
+# data %>%
+#   summarise_all(~c(prop_na = mean(is.na(.)), prop_zero = mean(. == 0)))
+```
+
+```{r, echo=FALSE, warning=FALSE, message = FALSE}
+# Evolució del canvi de temperatura al llarg del temps
+data %>% 
+  select(Year, Average.Temperature..C) %>% 
+  group_by(Year) %>% 
+  summarise(avg_tmp = mean(Average.Temperature..C, na.rm = TRUE)) %>% 
+  plot_ly(x = ~Year, y = ~avg_tmp, type = "scatter", mode = "line") %>%
+  layout(
+    title = "Evolució canvi de temperatura promig",
+    xaxis = list(title = "Year"),
+    yaxis = list(title = "Temperature change Cº")
+  )
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message = FALSE, out.width = "90%"}
+data %>%
+  select(-Area, -Rural.population, -Urban.population, -Total.Population...Male, -Total.Population...Female, -total_emission, -Average.Temperature..C, -Net.Forest.conversion, -Forestland, -On.farm.Electricity.Use, -On.farm.energy.use, -Fires.in.organic.soils, -IPPU) %>%
+  pivot_longer(cols = -Year, names_to = "Variable", values_to = "Value") %>%
+  group_by(Year, Variable) %>%
+  summarise(TotalValue = sum(Value, na.rm = TRUE)) %>%
+  plot_ly(x = ~Year, y = ~TotalValue, color = ~Variable, type = "scatter", mode = "line") %>%
+  layout(
+    title = "Evolution of Variables Over Years",
+    xaxis = list(title = "Year"),
+    yaxis = list(title = "Total Value")
+  )
+```
+
+
+
+```{r, echo=FALSE, warning=FALSE}
+# Quitamos todos los paises que tiene NAs
+na.countries <- data %>% 
+  group_by(Area) %>% 
+  summarise(na.pop = sum(is.na(Urban.population)),
+            na.food = sum(is.na(Food.Household.Consumption)),
+            n.data = n(),
+            dataminima = min(Year)) %>% 
+  filter(na.food == 0 & na.pop == 0 & dataminima < 1991 & n.data == 31) %>% 
+  select(Area) %>% unlist()
+```
+
+#### Evolució de l'aument de temperatura i emisions per residus alimentaris
+
+```{r, echo = FALSE, warning = FALSE, out.width = "90%"}
+# Acursar les cadenes de caràcters de la columna Area  
+data$AreaAux <- sapply(data$Area, function(x) ifelse(nchar(x) > 15, substr(x, 1, 15), x))
+
+# Països que no tenen dades faltants
+tmp.countries <- data %>% 
+  group_by(Area) %>% 
+  summarise(na.tmp = sum(is.na(Average.Temperature..C)),
+            na.emis = sum(is.na(Agrifood.Systems.Waste.Disposal)),
+            n.data = n(),
+            dataminima = min(Year),
+            agrif.mean = mean(Agrifood.Systems.Waste.Disposal)) %>% 
+  filter(na.tmp == 0 & na.emis == 0 & dataminima < 1991 & n.data == 31 & agrif.mean > 1 & agrif.mean < 20000) %>% 
+  select(Area) %>% unlist()
+
+#Filtratge de les dades:
+data %>% 
+  filter(Area %in% tmp.countries, !grepl('mainland', Area), !grepl('USSR', Area)) %>% 
+# Scatter plot
+  plot_ly(x = ~Average.Temperature..C, y = ~Agrifood.Systems.Waste.Disposal, type = "scatter", mode = "markers", color = ~AreaAux, text = ~Area, frame = ~Year) %>%
+  layout(title = "Aument de la temperatura i emisions residus agroalimentaris", xaxis = list(title = "Aument de temperatura (Cº)"), yaxis = list(title = "Emisions per resudus agroalimentaris (kt CO2)"),
+         slider = list(steps = lapply(unique(data$Year), function(Year) {
+           list(method = "animate", args = list("frame", list(duration = 500, redraw = TRUE), "transition", list(duration = 300)))
+         })))
+```
+
+#### Evolució de les poblacions (rural i urbana) i de les emisions derivadoes del consum d'aliments a nivell familiar per països
+
+
+```{r, echo = FALSE, warning=FALSE, out.width = "90%"}
+tmp.countries <- data %>% 
+  group_by(Area) %>% 
+  summarise(na.urban = sum(is.na(Urban.population)),
+            na.pop = sum(is.na(Rural.population)),
+            na.food = sum(is.na(Food.Household.Consumption)),
+            n.data = n(),
+            dataminima = min(Year),
+            agrif.mean = mean(Food.Household.Consumption)) %>% 
+  filter(na.pop == 0 & na.urban == 0 & na.food == 0 & dataminima < 1991 & n.data == 31) %>% 
+  select(Area) %>% unlist()
+
+#Filtratge de les dades:
+data %>% 
+  filter(Area %in% tmp.countries, !grepl('mainland', Area), !grepl('USSR', Area)) %>% 
+  # Scatter plot
+  plot_ly(
+    x = ~Rural.population, 
+    y = ~Urban.population, 
+    type = "scatter", 
+    mode = "markers", 
+    text = ~Area, 
+    frame = ~Year, 
+    size = ~Food.Household.Consumption, 
+    color = ~Food.Household.Consumption, 
+    colors = 'Reds',
+    marker = list(colorscale = 'Reds', cmin = min(data$Food.Household.Consumption), cmax = max(data$Food.Household.Consumption), size = 30, opacity = 0.5)
+  ) %>%
+  layout(
+    title = "Evolució de les poblacions i emisions per aliments familiar per països",
+    xaxis = list(title = "Població Rural"),
+    yaxis = list(title = " Població Urbana"),
+    slider = list(steps = lapply(unique(data$Year), function(Year) {
+      list(method = "animate", args = list("frame", list(duration = 500, redraw = TRUE), "transition", list(duration = 300)))
+    }))
+  )
+```
+
+
+#### Evolució de emisions per manufactura de fertilitzants i pesticides dels top 15 països amb més emisions per aquest motiu
+
+```{r, echo = FALSE, warning=FALSE, out.width = "90%"}
+top_fert_countries <- data %>%
+  filter(!grepl('mainland', Area), !grepl('USSR', Area)) %>% 
+  group_by(Area) %>% 
+  summarise(mean.FM = sum(Fertilizers.Manufacturing)) %>% 
+  arrange(mean.FM) %>% 
+  top_n(15, mean.FM) %>% 
+  select(Area) %>% as.vector()
+  
+
+data %>% 
+  filter(Area %in% top_fert_countries$Area) %>% 
+plot_ly(x = ~Year, y = ~Fertilizers.Manufacturing, color = ~Area, type = "scatter", mode = "lines") %>%
+  layout(
+    title = "Evolució emisions per producció de fertilitzants",
+    xaxis = list(title = "Any"),
+    yaxis = list(title = "kt de CO2")
+  )
+```
+
+
+
+```{r, echo = FALSE, warning=FALSE, out.width = "90%"}
+top_pest_countries <- data %>%
+  filter(!grepl('mainland', Area), !grepl('USSR', Area)) %>% 
+  group_by(Area) %>% 
+  summarise(mean.FM = sum(Pesticides.Manufacturing)) %>% 
+  arrange(mean.FM) %>% 
+  top_n(15, mean.FM) %>% 
+  select(Area) %>% unlist()
+  
+
+data %>% 
+  filter(Area %in% top_pest_countries) %>% 
+plot_ly(x = ~Year, y = ~Pesticides.Manufacturing, color = ~Area, type = "scatter", mode = "lines") %>%
+  layout(
+    title = "Evolució emisions per producció de pesticides",
+    xaxis = list(title = "Any"),
+    yaxis = list(title = "kt de CO2")
+  )
+```
+
+
+
+
+
